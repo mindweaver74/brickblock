@@ -228,6 +228,7 @@ function applyItem(type){
     paddle.wide=500;
   }
   else if(type.id==='bomb'){
+    sfxBomb();
     // 현재 벽돌 중 랜덤 영역 폭파
     var cx=W/2, cy=H*0.3;
     var bombed=0;
@@ -244,6 +245,7 @@ function applyItem(type){
     screenShake=15;
   }
   else if(type.id==='laser'){
+    sfxLaser();
     activeEffects.laser=300;
     // 레이저 발사
     var lx=paddle.x;
@@ -275,6 +277,7 @@ function ballBrickCollide(ball){
       addParticles(ball.x, ball.y, b.color[0], 6, 3);
       if(b.hp<=0){
         score += (b.maxHp*12 + stage*5);
+        sfxBreakBrick();
         addExplosion(bx+bw/2, by+bh/2, b.color[0]);
         // 아이템 드롭
         if(b.hasItem){
@@ -485,6 +488,7 @@ function loop(){
 
   // 기관총 자동 발사 (8프레임마다)
   if(activeEffects.gun>0 && frame%8===0){
+    sfxGunShot();
     var pw3=paddle.w+(paddle.wide>0?40:0);
     bullets.push({x:paddle.x-pw3*0.3, y:PADDLE_Y-4, vy:-14, life:1});
     bullets.push({x:paddle.x+pw3*0.3, y:PADDLE_Y-4, vy:-14, life:1});
@@ -508,6 +512,7 @@ function loop(){
       b.vx=Math.sin(angle)*sp;
       b.vy=-Math.abs(Math.cos(angle)*sp);
       b.y=PADDLE_Y-b.r;
+      sfxHitPaddle();
       addParticles(b.x,PADDLE_Y,'#4af',4,3);
     }
     // 바닥
@@ -518,6 +523,7 @@ function loop(){
 
   // 공 다 사라지면
   if(!launching && balls.length===0){
+    sfxLoseLife();
     lives--;
     if(lives<=0){endGame();ctx.restore();return;}
     updateHUD();
@@ -537,6 +543,7 @@ function loop(){
         br.hp--;
         if(br.hp<=0){
           score+=(br.maxHp*12+stage*5);
+          sfxBreakBrick();
           addExplosion(br.x+br.w/2,br.y+br.h/2,br.color[0]);
           if(br.hasItem) items.push({x:br.x+br.w/2-ITEM_W/2,y:br.y+br.h/2,type:br.itemType,vy:2.5,life:1});
           bricks.splice(bri,1);
@@ -563,6 +570,7 @@ function loop(){
     // 패들에 닿으면
     var pw2=paddle.w+(paddle.wide>0?40:0);
     if(it.y+ITEM_H>=PADDLE_Y && it.y<=PADDLE_Y+PADDLE_H && it.x+ITEM_W>=paddle.x-pw2/2 && it.x<=paddle.x+pw2/2){
+      sfxItem(it.type.id);
       applyItem(it.type);
       items.splice(ii,1);
       continue;
@@ -606,6 +614,7 @@ function loop(){
   // 스테이지 클리어
   if(!stageClearing && bricks.length===0 && !launching){
     stageClearing=true; stageClearTimer=90;
+    sfxStageClear();
     showStageClear();
   }
   if(stageClearing){
@@ -667,6 +676,7 @@ function endGame(){
 }
 
 function startGame(){
+  getSfx();
   score=0;lives=3;stage=1;
   balls=[];items=[];particles=[];lasers=[];bullets=[];
   activeEffects={wide:0,fire:0,speed:0,slow:0,laser:0,gun:0};
@@ -720,6 +730,217 @@ addEL(playBtn,'touchstart',function(e){e.preventDefault();e.stopPropagation();},
 addEL(playBtn,'touchend',function(e){e.preventDefault();e.stopPropagation();btnTouched=true;startGame();setTimeout(function(){btnTouched=false;},600);},false);
 addEL(playBtn,'click',function(){if(btnTouched)return;startGame();},false);
 
+
+
+// ── 효과음 ──
+var sfxCtx = null;
+function getSfx() {
+  if (!sfxCtx) try { sfxCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  if (sfxCtx && sfxCtx.state === 'suspended') sfxCtx.resume();
+  return sfxCtx;
+}
+
+// 공-벽돌 충돌음
+function sfxHitBrick(hp) {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'square';
+    var freq = hp <= 1 ? 280 : hp <= 2 ? 380 : 480;
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.06);
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    o.start(t); o.stop(t + 0.09);
+  } catch(e) {}
+}
+
+// 공-패들 충돌음
+function sfxHitPaddle() {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(600, t);
+    o.frequency.exponentialRampToValueAtTime(900, t + 0.04);
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    o.start(t); o.stop(t + 0.08);
+  } catch(e) {}
+}
+
+// 벽돌 파괴음
+function sfxBreakBrick() {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    // 노이즈 + 톤 믹스
+    var buf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.15), ac.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/d.length, 0.6);
+    var src = ac.createBufferSource(); src.buffer = buf;
+    var ng = ac.createGain();
+    ng.gain.setValueAtTime(0.22, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    src.connect(ng); ng.connect(ac.destination);
+    src.start(t); src.stop(t + 0.16);
+
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(440, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.12);
+    g.gain.setValueAtTime(0.15, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    o.start(t); o.stop(t + 0.13);
+  } catch(e) {}
+}
+
+// 폭탄 폭발음
+function sfxBomb() {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    var dur = 0.5;
+    var buf = ac.createBuffer(1, Math.floor(ac.sampleRate*dur), ac.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/d.length, 0.4);
+    var src = ac.createBufferSource(); src.buffer = buf;
+    var filt = ac.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.setValueAtTime(500, t);
+    filt.frequency.exponentialRampToValueAtTime(60, t + dur);
+    var g = ac.createGain();
+    g.gain.setValueAtTime(0.8, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(filt); filt.connect(g); g.connect(ac.destination);
+    src.start(t); src.stop(t + dur + 0.05);
+  } catch(e) {}
+}
+
+// 아이템 획득음
+function sfxItem(id) {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    if (id === 'multi') {
+      // 다중음 상승
+      [440, 554, 659].forEach(function(f, i) {
+        var o = ac.createOscillator(), g = ac.createGain();
+        o.connect(g); g.connect(ac.destination);
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.15, t+i*0.07);
+        g.gain.exponentialRampToValueAtTime(0.001, t+i*0.07+0.2);
+        o.start(t+i*0.07); o.stop(t+i*0.07+0.22);
+      });
+    } else if (id === 'fire') {
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(200, t);
+      o.frequency.exponentialRampToValueAtTime(800, t + 0.15);
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      o.start(t); o.stop(t + 0.22);
+    } else if (id === 'gun') {
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = 'square';
+      o.frequency.setValueAtTime(300, t);
+      o.frequency.exponentialRampToValueAtTime(600, t + 0.1);
+      g.gain.setValueAtTime(0.15, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      o.start(t); o.stop(t + 0.17);
+    } else if (id === 'life') {
+      [523, 659, 784, 1047].forEach(function(f, i) {
+        var o = ac.createOscillator(), g = ac.createGain();
+        o.connect(g); g.connect(ac.destination);
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.16, t+i*0.06);
+        g.gain.exponentialRampToValueAtTime(0.001, t+i*0.06+0.25);
+        o.start(t+i*0.06); o.stop(t+i*0.06+0.27);
+      });
+    } else {
+      // 일반 아이템
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(660, t);
+      o.frequency.exponentialRampToValueAtTime(880, t + 0.08);
+      g.gain.setValueAtTime(0.14, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      o.start(t); o.stop(t + 0.17);
+    }
+  } catch(e) {}
+}
+
+// 총알 발사음 (짧고 반복 적합하게)
+function sfxGunShot() {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'square';
+    o.frequency.setValueAtTime(800, t);
+    o.frequency.exponentialRampToValueAtTime(300, t + 0.04);
+    g.gain.setValueAtTime(0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    o.start(t); o.stop(t + 0.06);
+  } catch(e) {}
+}
+
+// 레이저음
+function sfxLaser() {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1200, t);
+    o.frequency.exponentialRampToValueAtTime(400, t + 0.15);
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.start(t); o.stop(t + 0.2);
+  } catch(e) {}
+}
+
+// 스테이지 클리어음
+function sfxStageClear() {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    [523, 659, 784, 1047, 1319].forEach(function(f, i) {
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.18, t+i*0.1);
+      g.gain.exponentialRampToValueAtTime(0.001, t+i*0.1+0.3);
+      o.start(t+i*0.1); o.stop(t+i*0.1+0.32);
+    });
+  } catch(e) {}
+}
+
+// 목숨 잃음
+function sfxLoseLife() {
+  var ac = getSfx(); if (!ac) return;
+  try {
+    var t = ac.currentTime;
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(300, t);
+    o.frequency.exponentialRampToValueAtTime(80, t + 0.5);
+    g.gain.setValueAtTime(0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o.start(t); o.stop(t + 0.52);
+  } catch(e) {}
+}
 
 // hex → rgba 변환
 function hexRgba(hex, alpha) {
