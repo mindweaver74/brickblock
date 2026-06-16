@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>벽돌깨기 REBORN</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
+html,body{width:100%;height:100%;background:#08080f;overflow:hidden;touch-action:none;font-family:-apple-system,Arial,sans-serif;}
+#c{display:block;touch-action:none;}
+#ui{position:fixed;top:0;left:0;width:100%;pointer-events:none;z-index:10;}
+#hud{display:flex;justify-content:space-between;align-items:center;padding:max(10px,env(safe-area-inset-top)) 16px 0;}
+.hud-val{color:#fff;font-size:22px;font-weight:900;letter-spacing:-1px;text-shadow:0 0 16px rgba(100,200,255,0.7);}
+.hud-lbl{color:rgba(255,255,255,0.4);font-size:10px;letter-spacing:1px;text-align:center;}
+#ball-count{position:fixed;bottom:max(80px,env(safe-area-inset-bottom)+70px);right:14px;font-size:13px;color:rgba(255,255,255,0.5);pointer-events:none;z-index:11;}
+
+/* 아이템 설명 토스트 */
+#item-toast{position:fixed;top:max(60px,env(safe-area-inset-top)+50px);left:50%;transform:translateX(-50%) translateY(-60px);background:rgba(20,20,35,0.95);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:8px 18px;font-size:13px;font-weight:700;color:#fff;z-index:30;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none;}
+#item-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* 오버레이 */
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,5,15,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;padding:24px;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:max(24px,env(safe-area-inset-bottom));}
+.ov-title{font-size:46px;font-weight:900;letter-spacing:-2px;background:linear-gradient(135deg,#4af,#f4a,#ff0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px;}
+.ov-sub{font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:20px;line-height:1.7;}
+.ov-score{font-size:80px;font-weight:900;color:#fff;line-height:1;display:none;}
+.ov-score-lbl{font-size:12px;color:rgba(255,255,255,0.4);display:none;margin-top:2px;}
+.ov-best{font-size:13px;color:#ffd700;display:none;margin-top:4px;margin-bottom:12px;}
+
+/* 아이템 가이드 */
+.item-guide{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:20px;max-width:320px;}
+.ig{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.05);border-radius:10px;padding:6px 10px;}
+.ig-icon{font-size:16px;}
+.ig-text{font-size:11px;color:rgba(255,255,255,0.65);line-height:1.3;}
+
+#play-btn{padding:14px 48px;border-radius:50px;border:none;font-size:17px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#4af,#a4f);color:#fff;-webkit-appearance:none;min-width:190px;position:relative;z-index:110;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="hud">
+    <div><div class="hud-lbl">SCORE</div><div class="hud-val" id="score-val">0</div></div>
+    <div><div class="hud-lbl">STAGE</div><div class="hud-val" id="stage-val">1</div></div>
+    <div><div class="hud-lbl">LIFE</div><div class="hud-val" id="life-val">❤️❤️❤️</div></div>
+  </div>
+</div>
+<div id="ball-count"></div>
+<div id="item-toast"></div>
+
+<div id="overlay">
+  <div class="ov-title">벽돌깨기 REBORN</div>
+  <div class="ov-sub">아이템으로 다이나믹하게 벽돌을 부수세요!</div>
+  <div class="item-guide">
+    <div class="ig"><div class="ig-icon">🔵</div><div class="ig-text">멀티볼<br>공 추가</div></div>
+    <div class="ig"><div class="ig-icon">🔴</div><div class="ig-text">파이어볼<br>관통!</div></div>
+    <div class="ig"><div class="ig-icon">⚡</div><div class="ig-text">스피드업<br>빠른 공</div></div>
+    <div class="ig"><div class="ig-icon">💣</div><div class="ig-text">폭탄<br>주변 폭파</div></div>
+    <div class="ig"><div class="ig-icon">🧲</div><div class="ig-text">와이드<br>패들 확장</div></div>
+    <div class="ig"><div class="ig-icon">⭐</div><div class="ig-text">레이저<br>직선 공격</div></div>
+    <div class="ig"><div class="ig-icon">🔫</div><div class="ig-text">기관총<br>자동 발사</div></div>
+  </div>
+  <div class="ov-score" id="ov-score"></div>
+  <div class="ov-score-lbl" id="ov-score-lbl">점수</div>
+  <div class="ov-best" id="ov-best"></div>
+  <button id="play-btn">시작하기</button>
+</div>
+
+<script>
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H, PADDLE_Y;
+
+function resize(){
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  PADDLE_Y = H - max(70, safeBot() + 50);
+}
+function safeBot(){ return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab')||'0')||0; }
+window.addEventListener('resize', resize);
+resize();
+
+var bestScore = +(localStorage.getItem('bbBest')||0);
+
+// ── 상수 ──
+var BRICK_ROWS  = 6;
+var BRICK_COLS  = 8;
+var BRICK_PAD   = 3;
+var BALL_R      = 8;
+var PADDLE_H    = 12;
+var BASE_SPEED  = 5.5;
+var ITEM_W = 26, ITEM_H = 26;
+
+// ── 상태 ──
+var score=0, lives=3, stage=1;
+var paddle, balls, bricks, items, particles, lasers, bullets;
+var gameActive=false, launching=true;
+var paddleTarget=W/2;
+var touchX=null;
+var stageClearing=false, stageClearTimer=0;
+
+// ── 아이템 정의 ──
+var ITEM_TYPES = [
+  {id:'multi',  icon:'🔵', color:'#4af', label:'멀티볼!',   weight:30},
+  {id:'fire',   icon:'🔴', color:'#f44', label:'파이어볼!', weight:20},
+  {id:'speed',  icon:'⚡', color:'#ff0', label:'스피드업!', weight:20},
+  {id:'wide',   icon:'🧲', color:'#0f9', label:'와이드!',   weight:20},
+  {id:'bomb',   icon:'💣', color:'#f80', label:'폭탄!',     weight:15},
+  {id:'laser',  icon:'⭐', color:'#f4f', label:'레이저!',   weight:10},
+  {id:'gun',    icon:'🔫', color:'#fa4', label:'기관총!',   weight:18},
+  {id:'slow',   icon:'🐢', color:'#8af', label:'슬로우~',   weight:15},
+  {id:'life',   icon:'❤️', color:'#f46', label:'생명 +1!',  weight:8},
+];
+var totalWeight = ITEM_TYPES.reduce(function(a,b){return a+b.weight;},0);
+
+function pickItemType(){
+  var r = Math.random()*totalWeight, acc=0;
+  for(var i=0;i<ITEM_TYPES.length;i++){
+    acc+=ITEM_TYPES[i].weight;
+    if(r<acc)return ITEM_TYPES[i];
+  }
+  return ITEM_TYPES[0];
+}
+
+// ── 벽돌 생성 ──
+function makeBricks(){
+  bricks=[];
+  var bw = (W - BRICK_PAD*(BRICK_COLS+1)) / BRICK_COLS;
+  var bh = 22;
+  var topOffset = max(70, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat')||'0')||0) + 50;
+  var COLORS=[['#f44','#f66'],['#f84','#fa6'],['#ff4','#ff8'],['#4f4','#6f6'],['#4af','#6cf'],['#a4f','#c6f']];
+  for(var r=0;r<BRICK_ROWS;r++){
+    for(var c=0;c<BRICK_COLS;c++){
+      var hp = r<2?3:r<4?2:1;
+      var baseHp = hp;
+      // 스테이지마다 HP 증가
+      hp = hp + Math.floor((stage-1)*0.5);
+      bricks.push({
+        x: BRICK_PAD+(bw+BRICK_PAD)*c,
+        y: topOffset+r*(bh+BRICK_PAD),
+        w: bw, h: bh,
+        hp: hp, maxHp: hp,
+        color: COLORS[r%COLORS.length],
+        hasItem: Math.random()<0.35,
+        itemType: pickItemType(),
+      });
+    }
+  }
+}
+
+// ── 패들 ──
+function makePaddle(){
+  paddle={x:W/2, y:PADDLE_Y, w:90, h:PADDLE_H, wide:0, laser:0};
+}
+
+// ── 공 ──
+function makeBall(x,y,vx,vy,fire,speed){
+  return{x:x,y:y,vx:vx||0,vy:vy||(-BASE_SPEED),r:BALL_R,fire:fire||false,speed:speed||BASE_SPEED,trail:[]};
+}
+
+function initBalls(){
+  balls=[makeBall(W/2, PADDLE_Y-BALL_R-2)];
+  launching=true;
+}
+
+// ── 파티클 ──
+function addParticles(x,y,color,n,sp){
+  sp=sp||4;
+  for(var i=0;i<(n||12);i++){
+    var a=Math.random()*Math.PI*2;
+    var s=(0.5+Math.random())*sp;
+    particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:color,sz:2+Math.random()*4});
+  }
+}
+function addExplosion(x,y,color){
+  addParticles(x,y,color,20,7);
+  addParticles(x,y,'#fff',8,4);
+  screenShake=10;
+}
+
+var screenShake=0;
+
+// ── 아이템 효과 ──
+var activeEffects={wide:0, fire:0, speed:0, slow:0, laser:0, gun:0};
+
+function applyItem(type){
+  showItemToast(type.label, type.color);
+  addParticles(paddle.x, paddle.y, type.color, 16, 5);
+
+  if(type.id==='multi'){
+    var newBalls=[];
+    balls.forEach(function(b){
+      for(var i=0;i<2;i++){
+        var a=Math.atan2(b.vy,b.vx)+(i===0?0.4:-0.4);
+        var sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
+        newBalls.push(makeBall(b.x,b.y,Math.cos(a)*sp,Math.sin(a)*sp,b.fire,b.speed));
+      }
+    });
+    balls=balls.concat(newBalls);
+  }
+  else if(type.id==='fire'){
+    activeEffects.fire=600;
+    balls.forEach(function(b){b.fire=true;});
+  }
+  else if(type.id==='speed'){
+    activeEffects.speed=400;
+    balls.forEach(function(b){
+      var sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
+      var ratio=1.45;
+      b.vx=b.vx/sp*(sp*ratio);
+      b.vy=b.vy/sp*(sp*ratio);
+      b.speed=b.speed*ratio;
+    });
+  }
+  else if(type.id==='slow'){
+    activeEffects.slow=400;
+    balls.forEach(function(b){
+      var sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
+      var ratio=0.6;
+      b.vx=b.vx/sp*(sp*ratio);
+      b.vy=b.vy/sp*(sp*ratio);
+      b.speed=b.speed*ratio;
+    });
+  }
+  else if(type.id==='wide'){
+    activeEffects.wide=500;
+    paddle.wide=500;
+  }
+  else if(type.id==='bomb'){
+    // 현재 벽돌 중 랜덤 영역 폭파
+    var cx=W/2, cy=H*0.3;
+    var bombed=0;
+    bricks.forEach(function(b){
+      var dx=b.x+b.w/2-cx, dy=b.y+b.h/2-cy;
+      if(Math.sqrt(dx*dx+dy*dy)<120&&bombed<12){
+        addExplosion(b.x+b.w/2, b.y+b.h/2, '#f80');
+        score+=b.hp*10*(stage);
+        b.hp=0; bombed++;
+      }
+    });
+    bricks=bricks.filter(function(b){return b.hp>0;});
+    updateScore();
+    screenShake=15;
+  }
+  else if(type.id==='laser'){
+    activeEffects.laser=300;
+    // 레이저 발사
+    var lx=paddle.x;
+    lasers.push({x:lx,y:PADDLE_Y,vy:-18,w:4,life:1});
+    lasers.push({x:lx-20,y:PADDLE_Y,vy:-18,w:4,life:1});
+    lasers.push({x:lx+20,y:PADDLE_Y,vy:-18,w:4,life:1});
+  }
+  else if(type.id==='gun'){
+    activeEffects.gun = 600; // 약 10초
+  }
+  else if(type.id==='life'){
+    lives=Math.min(lives+1,5);
+    updateHUD();
+  }
+}
+
+// ── 충돌 ──
+function ballBrickCollide(ball){
+  for(var i=bricks.length-1;i>=0;i--){
+    var b=bricks[i];
+    var bx=b.x, by=b.y, bw=b.w, bh=b.h;
+    var closestX=clamp(ball.x, bx, bx+bw);
+    var closestY=clamp(ball.y, by, by+bh);
+    var dx=ball.x-closestX, dy=ball.y-closestY;
+    if(dx*dx+dy*dy <= ball.r*ball.r){
+      // 히트!
+      var dmg = ball.fire ? b.hp : 1;
+      b.hp -= dmg;
+      addParticles(ball.x, ball.y, b.color[0], 6, 3);
+      if(b.hp<=0){
+        score += (b.maxHp*12 + stage*5);
+        addExplosion(bx+bw/2, by+bh/2, b.color[0]);
+        // 아이템 드롭
+        if(b.hasItem){
+          items.push({x:bx+bw/2-ITEM_W/2, y:by+bh/2, type:b.itemType, vy:2.5, life:1});
+        }
+        bricks.splice(i,1);
+      } else {
+        // 반사 (파이어볼은 관통)
+        if(!ball.fire){
+          var fromLeft  = Math.abs(ball.x-(bx+bw));
+          var fromRight = Math.abs(ball.x-bx);
+          var fromTop   = Math.abs(ball.y-(by+bh));
+          var fromBot   = Math.abs(ball.y-by);
+          var minSide   = Math.min(fromLeft,fromRight,fromTop,fromBot);
+          if(minSide===fromTop||minSide===fromBot) ball.vy*=-1;
+          else ball.vx*=-1;
+        }
+      }
+      updateScore();
+      if(!ball.fire) return;
+    }
+  }
+}
+
+// ── 레이저 vs 벽돌 ──
+function laserBrickCollide(laser){
+  for(var i=bricks.length-1;i>=0;i--){
+    var b=bricks[i];
+    if(laser.x>=b.x && laser.x<=b.x+b.w && laser.y>=b.y && laser.y<=b.y+b.h){
+      b.hp--;
+      addParticles(laser.x,laser.y,'#f4f',4,3);
+      if(b.hp<=0){
+        score+=(b.maxHp*12+stage*5);
+        addExplosion(b.x+b.w/2,b.y+b.h/2,b.color[0]);
+        if(b.hasItem) items.push({x:b.x+b.w/2-ITEM_W/2,y:b.y+b.h/2,type:b.itemType,vy:2.5,life:1});
+        bricks.splice(i,1);
+      }
+      laser.life=0;
+      updateScore();
+      return;
+    }
+  }
+}
+
+// ── 그리기 ──
+function drawBrick(b){
+  var pct=b.hp/b.maxHp;
+  // HP에 따라 색상 변화
+  var c0=b.color[0], c1=b.color[1];
+  ctx.fillStyle=pct>0.6?c1:pct>0.3?'#888':'#444';
+  ctx.beginPath();
+  ctx.roundRect(b.x,b.y,b.w,b.h,4);
+  ctx.fill();
+  // 테두리 글로우
+  ctx.strokeStyle=pct>0.6?c0:'rgba(200,200,200,0.3)';
+  ctx.lineWidth=1.5;
+  ctx.stroke();
+  // HP 표시 (2이상)
+  if(b.maxHp>1){
+    ctx.fillStyle='rgba(255,255,255,'+(0.4+0.5*pct).toFixed(2)+')';
+    ctx.font='bold 10px Arial';
+    ctx.textAlign='center';
+    ctx.fillText(b.hp, b.x+b.w/2, b.y+b.h/2+4);
+  }
+  // 아이템 있음 표시
+  if(b.hasItem && b.hp>0){
+    ctx.font='9px Arial';
+    ctx.fillText(b.itemType.icon, b.x+b.w-8, b.y+10);
+  }
+}
+
+function drawPaddle(){
+  var pw = paddle.w + (paddle.wide>0?40:0);
+  var g=ctx.createLinearGradient(paddle.x-pw/2,0,paddle.x+pw/2,0);
+  if(activeEffects.gun>0){
+    g.addColorStop(0,'#f80'); g.addColorStop(0.5,'#ff4'); g.addColorStop(1,'#f80');
+  } else if(activeEffects.laser>0){
+    g.addColorStop(0,'#a4f'); g.addColorStop(0.5,'#f4f'); g.addColorStop(1,'#a4f');
+  } else if(activeEffects.fire>0){
+    g.addColorStop(0,'#f44'); g.addColorStop(0.5,'#ff4'); g.addColorStop(1,'#f44');
+  } else {
+    g.addColorStop(0,'#4af'); g.addColorStop(0.5,'#8cf'); g.addColorStop(1,'#4af');
+  }
+  ctx.fillStyle=g;
+  ctx.shadowColor='rgba(80,160,255,0.6)'; ctx.shadowBlur=16;
+  ctx.beginPath(); ctx.roundRect(paddle.x-pw/2, PADDLE_Y, pw, PADDLE_H, 6); ctx.fill();
+  ctx.shadowBlur=0;
+  if(paddle.wide>0) paddle.wide--;
+}
+
+function drawBall(b){
+  // 잔상
+  b.trail.push({x:b.x,y:b.y});
+  if(b.trail.length>8) b.trail.shift();
+  b.trail.forEach(function(t,i){
+    var a=(i/b.trail.length)*0.3;
+    ctx.globalAlpha=a;
+    ctx.fillStyle=b.fire?'#f84':'#4af';
+    ctx.beginPath(); ctx.arc(t.x,t.y,b.r*0.7,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  var g=ctx.createRadialGradient(b.x-b.r*0.3,b.y-b.r*0.3,1,b.x,b.y,b.r);
+  if(b.fire){
+    g.addColorStop(0,'#fff'); g.addColorStop(0.4,'#ff8'); g.addColorStop(1,'#f40');
+    ctx.shadowColor='#f80'; ctx.shadowBlur=20;
+  } else {
+    g.addColorStop(0,'#fff'); g.addColorStop(0.5,'#8cf'); g.addColorStop(1,'#4af');
+    ctx.shadowColor='#4af'; ctx.shadowBlur=12;
+  }
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+}
+
+function drawItem(item){
+  ctx.save();
+  ctx.translate(item.x+ITEM_W/2, item.y+ITEM_H/2);
+  // 빛나는 배경
+  var g=ctx.createRadialGradient(0,0,0,0,0,ITEM_W*0.7);
+  g.addColorStop(0, hexRgba(item.type.color, 0.8));
+  g.addColorStop(1, hexRgba(item.type.color, 0.13));
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(0,0,ITEM_W*0.6,0,Math.PI*2); ctx.fill();
+  // 아이콘
+  ctx.font=ITEM_H*0.7+'px Arial';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(item.type.icon, 0, 0);
+  ctx.restore();
+}
+
+function drawBullet(bu){
+  ctx.save();
+  // 총알 본체
+  var g=ctx.createLinearGradient(bu.x,bu.y-10,bu.x,bu.y+4);
+  g.addColorStop(0,'#fff');
+  g.addColorStop(0.4,'#ff8');
+  g.addColorStop(1,'#f80');
+  ctx.fillStyle=g;
+  ctx.shadowColor='#fa4'; ctx.shadowBlur=8;
+  ctx.beginPath();
+  ctx.ellipse(bu.x, bu.y-5, 3, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+  // 잔상
+  ctx.globalAlpha=0.3;
+  ctx.fillStyle='#fa4';
+  ctx.beginPath();
+  ctx.ellipse(bu.x, bu.y+6, 2, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
+
+function drawLaser(l){
+  ctx.fillStyle='rgba(220,100,255,'+(l.life).toFixed(2)+')';
+  ctx.shadowColor='#f4f'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.roundRect(l.x-l.w/2,l.y-16,l.w,20,2); ctx.fill();
+  ctx.shadowBlur=0;
+}
+
+var starsBg=[];
+function initStars(){
+  starsBg=[];
+  for(var i=0;i<60;i++) starsBg.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.2+0.2,a:Math.random()*0.5+0.1});
+}
+initStars();
+function drawStars(){
+  for(var i=0;i<starsBg.length;i++){
+    var s=starsBg[i];
+    ctx.globalAlpha=s.a*(0.7+0.3*Math.sin(Date.now()*0.001+i));
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ── 메인 루프 ──
+var frame=0;
+function loop(){
+  requestAnimationFrame(loop);
+  frame++;
+
+  // 흔들림
+  var sx=0,sy=0;
+  if(screenShake>0){sx=(Math.random()-0.5)*screenShake;sy=(Math.random()-0.5)*screenShake;screenShake*=0.85;}
+  ctx.save();
+  if(sx||sy) ctx.translate(sx,sy);
+
+  ctx.fillStyle='#08080f';
+  ctx.fillRect(0,0,W,H);
+  drawStars();
+
+  if(!gameActive){ctx.restore();return;}
+
+  // 패들 이동
+  paddle.x += (paddleTarget-paddle.x)*0.18;
+  paddle.x = clamp(paddle.x, paddle.w/2+20, W-paddle.w/2-20);
+
+  // 발사 대기
+  if(launching && balls.length>0){
+    balls[0].x=paddle.x; balls[0].y=PADDLE_Y-BALL_R-2;
+  }
+
+  // 아이템 효과 카운트다운
+  for(var k in activeEffects){ if(activeEffects[k]>0) activeEffects[k]--; }
+  if(activeEffects.fire<=0) balls.forEach(function(b){b.fire=false;});
+
+  // 기관총 자동 발사 (8프레임마다)
+  if(activeEffects.gun>0 && frame%8===0){
+    var pw3=paddle.w+(paddle.wide>0?40:0);
+    bullets.push({x:paddle.x-pw3*0.3, y:PADDLE_Y-4, vy:-14, life:1});
+    bullets.push({x:paddle.x+pw3*0.3, y:PADDLE_Y-4, vy:-14, life:1});
+  }
+
+  // 공 업데이트
+  for(var bi=balls.length-1;bi>=0;bi--){
+    var b=balls[bi];
+    if(launching) break;
+    b.x+=b.vx; b.y+=b.vy;
+    // 벽 반사
+    if(b.x-b.r<0){b.x=b.r;b.vx=Math.abs(b.vx);}
+    if(b.x+b.r>W){b.x=W-b.r;b.vx=-Math.abs(b.vx);}
+    if(b.y-b.r<0){b.y=b.r;b.vy=Math.abs(b.vy);}
+    // 패들 충돌
+    var pw=paddle.w+(paddle.wide>0?40:0);
+    if(b.y+b.r>=PADDLE_Y && b.y-b.r<=PADDLE_Y+PADDLE_H && b.x>=paddle.x-pw/2 && b.x<=paddle.x+pw/2 && b.vy>0){
+      var rel=(b.x-paddle.x)/(pw/2);
+      var angle=rel*Math.PI*0.35;
+      var sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
+      b.vx=Math.sin(angle)*sp;
+      b.vy=-Math.abs(Math.cos(angle)*sp);
+      b.y=PADDLE_Y-b.r;
+      addParticles(b.x,PADDLE_Y,'#4af',4,3);
+    }
+    // 바닥
+    if(b.y-b.r>H){balls.splice(bi,1); continue;}
+    // 벽돌 충돌
+    ballBrickCollide(b);
+  }
+
+  // 공 다 사라지면
+  if(!launching && balls.length===0){
+    lives--;
+    if(lives<=0){endGame();ctx.restore();return;}
+    updateHUD();
+    initBalls();
+  }
+
+  // 총알 업데이트
+  for(var bui=bullets.length-1;bui>=0;bui--){
+    var bu=bullets[bui];
+    bu.y+=bu.vy;
+    // 벽돌 충돌
+    var bhit=false;
+    for(var bri=bricks.length-1;bri>=0;bri--){
+      var br=bricks[bri];
+      if(bu.x>=br.x && bu.x<=br.x+br.w && bu.y>=br.y && bu.y<=br.y+br.h){
+        addParticles(bu.x,bu.y,'#fa4',5,3);
+        br.hp--;
+        if(br.hp<=0){
+          score+=(br.maxHp*12+stage*5);
+          addExplosion(br.x+br.w/2,br.y+br.h/2,br.color[0]);
+          if(br.hasItem) items.push({x:br.x+br.w/2-ITEM_W/2,y:br.y+br.h/2,type:br.itemType,vy:2.5,life:1});
+          bricks.splice(bri,1);
+        }
+        bu.life=0; bhit=true;
+        updateScore(); break;
+      }
+    }
+    if(bu.y<0||bu.life<=0) bullets.splice(bui,1);
+  }
+
+  // 레이저 업데이트
+  for(var li=lasers.length-1;li>=0;li--){
+    var l=lasers[li];
+    l.y+=l.vy;
+    laserBrickCollide(l);
+    if(l.y<0||l.life<=0) lasers.splice(li,1);
+  }
+
+  // 아이템 업데이트
+  for(var ii=items.length-1;ii>=0;ii--){
+    var it=items[ii];
+    it.y+=it.vy;
+    // 패들에 닿으면
+    var pw2=paddle.w+(paddle.wide>0?40:0);
+    if(it.y+ITEM_H>=PADDLE_Y && it.y<=PADDLE_Y+PADDLE_H && it.x+ITEM_W>=paddle.x-pw2/2 && it.x<=paddle.x+pw2/2){
+      applyItem(it.type);
+      items.splice(ii,1);
+      continue;
+    }
+    if(it.y>H) items.splice(ii,1);
+  }
+
+  // 파티클
+  for(var pi=particles.length-1;pi>=0;pi--){
+    var p=particles[pi];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.08; p.vx*=0.97; p.life-=0.025;
+    if(p.life<=0){particles.splice(pi,1);continue;}
+    ctx.globalAlpha=p.life;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,Math.max(0,p.sz*p.life),0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // 그리기
+  bricks.forEach(drawBrick);
+  bullets.forEach(drawBullet);
+  items.forEach(drawItem);
+  lasers.forEach(drawLaser);
+  balls.forEach(drawBall);
+  drawPaddle();
+
+  // 발사 힌트
+  if(launching){
+    ctx.fillStyle='rgba(255,255,255,0.4)';
+    ctx.font='13px Arial'; ctx.textAlign='center';
+    ctx.fillText('터치해서 발사!', W/2, PADDLE_Y-30);
+    // 방향 표시 점선
+    ctx.setLineDash([4,6]); ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(W/2,PADDLE_Y-BALL_R-2); ctx.lineTo(W/2,PADDLE_Y-80); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 볼 카운트
+  document.getElementById('ball-count').textContent = '공 x' + balls.length;
+
+  // 스테이지 클리어
+  if(!stageClearing && bricks.length===0 && !launching){
+    stageClearing=true; stageClearTimer=90;
+    showStageClear();
+  }
+  if(stageClearing){
+    stageClearTimer--;
+    if(stageClearTimer<=0){stageClearing=false;nextStage();}
+  }
+
+  ctx.restore();
+}
+
+// ── UI ──
+function updateScore(){
+  document.getElementById('score-val').textContent=score;
+}
+function updateHUD(){
+  document.getElementById('life-val').textContent='❤️'.repeat(lives);
+  document.getElementById('stage-val').textContent=stage;
+  updateScore();
+}
+
+var toastTimer=null;
+function showItemToast(label,color){
+  var el=document.getElementById('item-toast');
+  el.textContent=label;
+  el.style.color=color;
+  el.style.borderColor=hexRgba(color, 0.4);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){el.classList.remove('show');},1500);
+}
+
+function showStageClear(){
+  addParticles(W/2,H/3,'#ffd700',30,8);
+  addParticles(W/2,H/3,'#fff',20,5);
+}
+
+function nextStage(){
+  stage++;
+  document.getElementById('stage-val').textContent=stage;
+  makeBricks();
+  initBalls();
+  bullets=[];
+  activeEffects={wide:0,fire:0,speed:0,slow:0,laser:0,gun:0};
+}
+
+function endGame(){
+  gameActive=false;
+  var isNew=score>bestScore;
+  if(isNew){bestScore=score;localStorage.setItem('bbBest',bestScore);}
+  document.getElementById('ov-score').textContent=score;
+  document.getElementById('ov-score').style.display='block';
+  document.getElementById('ov-score-lbl').style.display='block';
+  var bestEl=document.getElementById('ov-best');
+  bestEl.textContent=isNew?'🏆 신기록!':'최고: '+bestScore+'점';
+  bestEl.style.display='block';
+  document.getElementById('play-btn').textContent='다시하기';
+  document.getElementById('play-btn').style.background='linear-gradient(135deg,#f84,#f4a)';
+  document.getElementById('overlay').style.display='flex';
+}
+
+function startGame(){
+  score=0;lives=3;stage=1;
+  balls=[];items=[];particles=[];lasers=[];bullets=[];
+  activeEffects={wide:0,fire:0,speed:0,slow:0,laser:0,gun:0};
+  makePaddle();makeBricks();initBalls();initStars();
+  updateHUD();
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('play-btn').textContent='시작하기';
+  document.getElementById('play-btn').style.background='linear-gradient(135deg,#4af,#a4f)';
+  gameActive=true;
+}
+
+// ── 입력 ──
+function addEL(el,ev,fn,opts){if(el)el.addEventListener(ev,fn,opts||false);}
+
+addEL(canvas,'touchstart',function(e){
+  e.preventDefault();
+  if(!gameActive)return;
+  var t=e.touches[0];
+  touchX=t.clientX;
+  paddleTarget=touchX;
+  if(launching){launching=false;
+    var b=balls[0];
+    var angle=(Math.random()-0.5)*0.6-Math.PI/2;
+    var sp=BASE_SPEED+stage*0.3;
+    b.vx=Math.cos(angle)*sp; b.vy=Math.sin(angle)*sp; b.speed=sp;
+  }
+},{passive:false});
+
+addEL(canvas,'touchmove',function(e){
+  e.preventDefault();
+  if(!gameActive)return;
+  paddleTarget=e.touches[0].clientX;
+},{passive:false});
+
+addEL(canvas,'touchend',function(e){e.preventDefault();touchX=null;},{passive:false});
+
+addEL(canvas,'mousemove',function(e){if(!gameActive)return;paddleTarget=e.clientX;},false);
+addEL(canvas,'mousedown',function(e){
+  if(!gameActive)return;
+  if(launching){launching=false;
+    var b=balls[0];
+    var angle=-Math.PI/2+(Math.random()-0.5)*0.5;
+    var sp=BASE_SPEED+stage*0.3;
+    b.vx=Math.cos(angle)*sp; b.vy=Math.sin(angle)*sp; b.speed=sp;
+  }
+},false);
+
+var playBtn=document.getElementById('play-btn');
+var btnTouched=false;
+addEL(playBtn,'touchstart',function(e){e.preventDefault();e.stopPropagation();},false);
+addEL(playBtn,'touchend',function(e){e.preventDefault();e.stopPropagation();btnTouched=true;startGame();setTimeout(function(){btnTouched=false;},600);},false);
+addEL(playBtn,'click',function(){if(btnTouched)return;startGame();},false);
+
+
+// hex → rgba 변환
+function hexRgba(hex, alpha) {
+  hex = hex.replace('#','');
+  if(hex.length===3) hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  var r=parseInt(hex.substr(0,2),16);
+  var g=parseInt(hex.substr(2,2),16);
+  var b=parseInt(hex.substr(4,2),16);
+  return 'rgba('+r+','+g+','+b+','+alpha+')';
+}
+// ── 유틸 ──
+function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+function max(a,b){return a>b?a:b;}
+
+loop();
+</script>
+</body>
+</html>
