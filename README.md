@@ -1,8 +1,8 @@
-# 🧱 벽돌깨기 REBORN
+# 🧱 벽돌깨기
 
 > 아이템으로 다이나믹하게 벽돌을 부수세요! 공이 늘어나고, 불이 붙고, 폭탄이 터진다!
 
-**▶ 지금 바로 플레이** → [https://mindweaver74.github.io/brickbreak-reborn](https://mindweaver74.github.io/brickbreak-reborn)
+**▶ 지금 바로 플레이** → https://mindweaver74.github.io/brickblock/
 
 ---
 
