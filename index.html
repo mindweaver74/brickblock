@@ -14,7 +14,7 @@ html,body{width:100%;height:100%;background:#08080f;overflow:hidden;touch-action
 #hud{display:flex;justify-content:space-between;align-items:center;padding:max(10px,env(safe-area-inset-top)) 16px 0;}
 .hud-val{color:#fff;font-size:22px;font-weight:900;letter-spacing:-1px;text-shadow:0 0 16px rgba(100,200,255,0.7);}
 .hud-lbl{color:rgba(255,255,255,0.4);font-size:10px;letter-spacing:1px;text-align:center;}
-#ball-count{position:fixed;bottom:max(80px,env(safe-area-inset-bottom)+70px);right:14px;font-size:13px;color:rgba(255,255,255,0.5);pointer-events:none;z-index:11;}
+#ball-count{position:fixed;bottom:max(160px,env(safe-area-inset-bottom)+150px);right:14px;font-size:13px;color:rgba(255,255,255,0.5);pointer-events:none;z-index:11;}
 
 /* 아이템 설명 토스트 */
 #item-toast{position:fixed;top:max(60px,env(safe-area-inset-top)+50px);left:50%;transform:translateX(-50%) translateY(-60px);background:rgba(20,20,35,0.95);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:8px 18px;font-size:13px;font-weight:700;color:#fff;z-index:30;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none;}
@@ -50,7 +50,7 @@ html,body{width:100%;height:100%;background:#08080f;overflow:hidden;touch-action
 <div id="item-toast"></div>
 
 <div id="overlay">
-  <div class="ov-title">벽돌깨기</div>
+  <div class="ov-title">벽돌깨기 REBORN</div>
   <div class="ov-sub">아이템으로 다이나믹하게 벽돌을 부수세요!</div>
   <div class="item-guide">
     <div class="ig"><div class="ig-icon">🔵</div><div class="ig-text">멀티볼<br>공 추가</div></div>
@@ -75,7 +75,7 @@ var W, H, PADDLE_Y;
 function resize(){
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  PADDLE_Y = H - max(70, safeBot() + 50);
+  PADDLE_Y = H - max(130, safeBot() + 130);
 }
 function safeBot(){ return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab')||'0')||0; }
 window.addEventListener('resize', resize);
